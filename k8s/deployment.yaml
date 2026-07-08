@@ -5,7 +5,7 @@ metadata:
   labels:
     app: video-processor-service
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: video-processor-service
@@ -65,6 +65,7 @@ spec:
                 secretKeyRef:
                   name: video-processor-service-secrets
                   key: new-relic-license-key
+                  optional: true
             - name: AWS_REGION
               value: "us-east-1"
           livenessProbe:
