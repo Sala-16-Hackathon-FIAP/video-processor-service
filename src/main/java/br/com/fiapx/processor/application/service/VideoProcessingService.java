@@ -7,16 +7,16 @@ import br.com.fiapx.processor.application.port.output.StoragePort;
 import br.com.fiapx.processor.application.port.output.VideoProcessorPort;
 import br.com.fiapx.processor.domain.exception.ProcessingJobNotFoundException;
 import br.com.fiapx.processor.domain.model.ProcessingJob;
+import br.com.fiapx.processor.domain.model.ProcessingStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -40,12 +40,26 @@ public class VideoProcessingService implements VideoProcessingUseCase {
         this.eventPublisher = eventPublisher;
     }
 
+    /**
+     * Processes a video synchronously on the RabbitMQ listener thread. The broker
+     * message is only acknowledged after this method returns, so a pod crash mid-way
+     * leaves the message unacknowledged and it is redelivered (at-least-once).
+     * Concurrency across videos comes from replicas + listener consumers, not from
+     * an async executor. Idempotent per uploadId: a duplicate/redelivered event for an
+     * already-completed upload is skipped; any other prior state is reprocessed on the
+     * same job row (upload_id is UNIQUE in the database).
+     */
     @Override
-    @Async("videoProcessingExecutor")
-    @Transactional
     public void processVideo(UUID uploadId, UUID userId, String filename, String sourceS3Key) {
-        ProcessingJob job = ProcessingJob.create(uploadId, userId, filename, sourceS3Key);
-        job = jobRepository.save(job);
+        Optional<ProcessingJob> existing = jobRepository.findByUploadId(uploadId);
+        if (existing.isPresent() && existing.get().status() == ProcessingStatus.COMPLETED) {
+            log.info("Upload {} already processed (job {} COMPLETED); skipping duplicate event",
+                    uploadId, existing.get().id());
+            return;
+        }
+
+        ProcessingJob job = existing.orElseGet(
+                () -> jobRepository.save(ProcessingJob.create(uploadId, userId, filename, sourceS3Key)));
 
         job = job.started();
         job = jobRepository.save(job);
