@@ -25,6 +25,10 @@ spring:
     username: ${RABBITMQ_USER:fiapx}
     password: ${RABBITMQ_PASS:fiapx123}
 
+rabbit:
+  topic:
+    concurrent-consumers: ${RABBIT_CONCURRENT_CONSUMERS:2}
+
 server:
   port: 8083
   forward-headers-strategy: framework
