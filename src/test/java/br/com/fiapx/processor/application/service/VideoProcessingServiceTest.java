@@ -100,6 +100,42 @@ class VideoProcessingServiceTest {
     }
 
     @Test
+    void processVideo_shouldSkip_whenUploadAlreadyCompleted() {
+        ProcessingJob completed = new ProcessingJob(UUID.randomUUID(), uploadId, userId, "video.mp4",
+                "uploads/key", "processed/key/frames.zip", ProcessingStatus.COMPLETED, null,
+                LocalDateTime.now(), LocalDateTime.now());
+        when(jobRepository.findByUploadId(uploadId)).thenReturn(Optional.of(completed));
+
+        service.processVideo(uploadId, userId, "video.mp4", "uploads/key");
+
+        verify(jobRepository, never()).save(any());
+        verify(eventPublisher, never()).publishProcessingStarted(any());
+        verify(storage, never()).downloadToFile(any(), any());
+    }
+
+    @Test
+    void processVideo_shouldReprocessSameJob_whenExistingNotCompleted() throws IOException {
+        UUID jobId = UUID.randomUUID();
+        ProcessingJob failed = new ProcessingJob(jobId, uploadId, userId, "video.mp4",
+                "uploads/key", null, ProcessingStatus.FAILED, "previous failure",
+                LocalDateTime.now(), LocalDateTime.now());
+        Path zipFile = tempDir.resolve("result.zip");
+        Files.createFile(zipFile);
+
+        when(jobRepository.findByUploadId(uploadId)).thenReturn(Optional.of(failed));
+        when(jobRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(videoProcessor.extractFramesToZip(any(), any())).thenReturn(zipFile);
+
+        ArgumentCaptor<ProcessingJob> captor = ArgumentCaptor.forClass(ProcessingJob.class);
+        service.processVideo(uploadId, userId, "video.mp4", "uploads/key");
+
+        verify(eventPublisher).publishProcessingStarted(any());
+        verify(eventPublisher).publishProcessingCompleted(captor.capture());
+        assertThat(captor.getValue().id()).isEqualTo(jobId);
+        assertThat(captor.getValue().status()).isEqualTo(ProcessingStatus.COMPLETED);
+    }
+
+    @Test
     void getJob_shouldReturnJob_whenExists() {
         ProcessingJob job = new ProcessingJob(UUID.randomUUID(), uploadId, userId, "v.mp4",
                 "key", null, ProcessingStatus.PENDING, null, LocalDateTime.now(), LocalDateTime.now());
