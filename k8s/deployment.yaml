@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-processor-service
+  labels:
+    app: video-processor-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: video-processor-service
+  template:
+    metadata:
+      labels:
+        app: video-processor-service
+    spec:
+      containers:
+        - name: video-processor-service
+          image: PROCESSOR_SERVICE_IMAGE
+          ports:
+            - containerPort: 8083
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: db-url
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: db-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: db-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: jwt-secret
+            - name: RABBITMQ_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: rabbitmq-host
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: rabbitmq-user
+            - name: RABBITMQ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: rabbitmq-pass
+            - name: S3_BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: s3-bucket
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: video-processor-service-secrets
+                  key: new-relic-license-key
+                  optional: true
+            - name: AWS_REGION
+              value: "us-east-1"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 40
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
