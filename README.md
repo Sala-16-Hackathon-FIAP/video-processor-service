@@ -2,6 +2,10 @@
 
 Listens for `video.upload.completed` events, downloads the video from S3, extracts one frame per second using FFmpeg, packages the frames into a ZIP file, uploads the result back to S3, and publishes processing lifecycle events.
 
+![FIAP-X platform architecture](docs/architecture.png)
+
+> High-level architecture of the FIAP-X platform — microservices, choreographed saga over RabbitMQ, database-per-service (RDS), object storage (S3), running on EKS and provisioned with Terraform.
+
 ## Technology Stack
 
 - **Java 21** + **Spring Boot 3.5.0**
